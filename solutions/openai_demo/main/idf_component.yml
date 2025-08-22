@@ -3,10 +3,6 @@ dependencies:
   ## Required IDF version
   idf:
     version: ">=5.0"
-  capture_audio_src:
-    path: ../../../components/esp_capture/src/impl/capture_audio_src
-  capture_audio_enc:
-    path: ../../../components/esp_capture/src/impl/capture_audio_enc
   render_impl:
      path: ../../../components/av_render/render_impl
   espressif/esp_h264:

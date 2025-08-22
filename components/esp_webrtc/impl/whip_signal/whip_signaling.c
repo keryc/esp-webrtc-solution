@@ -180,6 +180,7 @@ static void whip_sdp_header(const char *key, const char *value, void *ctx)
     if (value == NULL) {
         return;
     }
+    printf("%s --> %s\n", key, value);
     if (strcasecmp(key, "Location") == 0) {
         SAFE_FREE(sig->location);
         sig->location = get_full_path(sig->cfg.signal_url, value);

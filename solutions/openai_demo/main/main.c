@@ -21,7 +21,7 @@
 #include "esp_timer.h"
 #include "esp_cpu.h"
 #include "common.h"
-#include "esp_capture_defaults.h"
+#include "esp_capture.h"
 
 static int start_chat(int argc, char **argv)
 {
@@ -72,14 +72,6 @@ static int measure_cli(int argc, char **argv)
     measure_enable(true);
     media_lib_thread_sleep(1500);
     measure_enable(false);
-    return 0;
-}
-
-static int dump_cli(int argc, char **argv)
-{
-    bool enable = (argc > 1);
-    printf("Enable AEC dump %d\n", enable);
-    esp_capture_enable_aec_src_dump(enable);
     return 0;
 }
 
@@ -148,11 +140,6 @@ static int init_console()
             .func = measure_cli,
         },
         {
-            .command = "dump",
-            .help = "Dump AEC data\r\n",
-            .func = dump_cli,
-        },
-        {
             .command = "text",
             .help = "Send text message\r\n",
             .func = text_cli,
@@ -170,48 +157,64 @@ static int init_console()
     return 0;
 }
 
-static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *thread_cfg)
+static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *schedule_cfg)
 {
-    if (strcmp(thread_name, "pc_task") == 0) {
-        thread_cfg->stack_size = 25 * 1024;
-        thread_cfg->priority = 18;
-        thread_cfg->core_id = 1;
-    }
-    if (strcmp(thread_name, "start") == 0) {
-        thread_cfg->stack_size = 6 * 1024;
-    }
-    if (strcmp(thread_name, "pc_send") == 0) {
-        thread_cfg->stack_size = 4 * 1024;
-        thread_cfg->priority = 15;
-        thread_cfg->core_id = 1;
-    }
-    if (strcmp(thread_name, "Adec") == 0) {
-        thread_cfg->stack_size = 40 * 1024;
-        thread_cfg->priority = 10;
-        thread_cfg->core_id = 1;
-    }
-    if (strcmp(thread_name, "venc") == 0) {
+    if (strcmp(thread_name, "venc_0") == 0) {
+        // For H264 may need huge stack if use hardware encoder can set it to small value
+        schedule_cfg->priority = 10;
 #if CONFIG_IDF_TARGET_ESP32S3
-        thread_cfg->stack_size = 20 * 1024;
+        schedule_cfg->stack_size = 20 * 1024;
 #endif
-        thread_cfg->priority = 10;
     }
 #ifdef WEBRTC_SUPPORT_OPUS
-    if (strcmp(thread_name, "aenc") == 0) {
-        thread_cfg->stack_size = 40 * 1024;
-        thread_cfg->priority = 10;
-    }
-    if (strcmp(thread_name, "SrcRead") == 0) {
-        thread_cfg->stack_size = 40 * 1024;
-        thread_cfg->priority = 16;
-        thread_cfg->core_id = 0;
-    }
-    if (strcmp(thread_name, "buffer_in") == 0) {
-        thread_cfg->stack_size = 6 * 1024;
-        thread_cfg->priority = 10;
-        thread_cfg->core_id = 0;
+    else if (strcmp(thread_name, "aenc_0") == 0) {
+        // For OPUS encoder it need huge stack, when use G711 can set it to small value
+        schedule_cfg->stack_size = 40 * 1024;
+        schedule_cfg->priority = 10;
+        schedule_cfg->core_id = 1;
+    } else if (strcmp(thread_name, "buffer_in") == 0) {
+        schedule_cfg->stack_size = 6 * 1024;
+        schedule_cfg->priority = 10;
+        schedule_cfg->core_id = 0;
     }
 #endif
+    else if (strcmp(thread_name, "AUD_SRC") == 0) {
+ #ifdef WEBRTC_SUPPORT_OPUS
+        schedule_cfg->stack_size = 40 * 1024;
+#endif
+        schedule_cfg->priority = 15;
+    } else if (strcmp(thread_name, "pc_task") == 0) {
+        schedule_cfg->stack_size = 25 * 1024;
+        schedule_cfg->priority = 18;
+        schedule_cfg->core_id = 1;
+    } else if (strcmp(thread_name, "pc_send") == 0) {
+        schedule_cfg->stack_size = 4 * 1024;
+        schedule_cfg->priority = 15;
+        schedule_cfg->core_id = 1;
+    } else if (strcmp(thread_name, "Adec") == 0) {
+        schedule_cfg->stack_size = 40 * 1024;
+        schedule_cfg->priority = 15;
+        schedule_cfg->core_id = 0;
+    }else if (strcmp(thread_name, "ARender") == 0) {
+        schedule_cfg->priority = 20;
+    }
+    if (strcmp(thread_name, "start") == 0) {
+        schedule_cfg->stack_size = 6 * 1024;
+    }
+}
+
+static void capture_scheduler(const char *name, esp_capture_thread_schedule_cfg_t *schedule_cfg)
+{
+    media_lib_thread_cfg_t cfg = {
+        .stack_size = schedule_cfg->stack_size,
+        .priority = schedule_cfg->priority,
+        .core_id = schedule_cfg->core_id,
+    };
+    schedule_cfg->stack_in_ext = true;
+    thread_scheduler(name, &cfg);
+    schedule_cfg->stack_size = cfg.stack_size;
+    schedule_cfg->priority = cfg.priority;
+    schedule_cfg->core_id = cfg.core_id;
 }
 
 static int network_event_handler(bool connected)
@@ -229,6 +232,7 @@ void app_main(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     media_lib_add_default_adapter();
+    esp_capture_set_thread_scheduler(capture_scheduler);
     media_lib_thread_set_schedule_cb(thread_scheduler);
     init_board();
     media_sys_buildup();

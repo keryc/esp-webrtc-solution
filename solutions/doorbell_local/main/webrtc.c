@@ -208,6 +208,7 @@ static void data_thread_hdlr(void *arg)
                 esp_peer_handle_t peer_handle = NULL;
                 esp_webrtc_get_peer_connection(webrtc, &peer_handle);
                 esp_peer_send_data(peer_handle, &data_frame);
+                printf("Send string %.*s", n, str);
             }
             last_send_time = time;
         }
@@ -263,7 +264,7 @@ static int webrtc_on_data(esp_peer_data_frame_t *frame, void *ctx)
             ch && ch->info.label ? ch->info.label : "NULL",
             verified,
             str_len, (char *)frame->data);
-    } 
+    }
     return 0;
 }
 

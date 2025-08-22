@@ -34,6 +34,7 @@
 #include "esp_webrtc.h"
 #include "esp_codec_dev.h"
 #include "esp_webrtc_defaults.h"
+#include "esp_capture_sink.h"
 
 #define AUDIO_FRAME_INTERVAL (20)
 #define STR_SAME(a, b)       (strncmp(a, b, sizeof(b) - 1) == 0)
@@ -72,7 +73,7 @@ typedef struct {
     esp_timer_handle_t            send_timer;
     bool                          send_going;
     esp_webrtc_media_provider_t   media_provider;
-    esp_capture_path_handle_t     capture_path;
+    esp_capture_sink_handle_t     capture_path;
     esp_codec_dev_handle_t        play_handle;
     esp_peer_audio_stream_info_t  recv_aud_info;
     esp_peer_video_stream_info_t  recv_vid_info;
@@ -109,14 +110,14 @@ static void _media_send(void *ctx)
             .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
         };
         // Get and send all audio frame without wait
-        while (esp_capture_acquire_path_frame(rtc->capture_path, &audio_frame, true) == ESP_CAPTURE_ERR_OK) {
+        while (esp_capture_sink_acquire_frame(rtc->capture_path, &audio_frame, true) == ESP_CAPTURE_ERR_OK) {
             esp_peer_audio_frame_t audio_send_frame = {
                 .pts = audio_frame.pts,
                 .data = audio_frame.data,
                 .size = audio_frame.size,
             };
             esp_peer_send_audio(rtc->pc, &audio_send_frame);
-            esp_capture_release_path_frame(rtc->capture_path, &audio_frame);
+            esp_capture_sink_release_frame(rtc->capture_path, &audio_frame);
             rtc->aud_send_pts = audio_frame.pts;
             rtc->aud_send_num++;
             rtc->aud_send_size += audio_frame.size;
@@ -129,7 +130,7 @@ static void _media_send(void *ctx)
         esp_capture_stream_frame_t video_frame = {
             .stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO,
         };
-        int ret = esp_capture_acquire_path_frame(rtc->capture_path, &video_frame, true);
+        int ret = esp_capture_sink_acquire_frame(rtc->capture_path, &video_frame, true);
         if (ret == ESP_CAPTURE_ERR_OK) {
             if (rtc->rtc_cfg.peer_cfg.enable_data_channel && rtc->rtc_cfg.peer_cfg.video_over_data_channel) {
                 esp_peer_data_frame_t data_frame = {
@@ -146,7 +147,7 @@ static void _media_send(void *ctx)
                 };
                 esp_peer_send_video(rtc->pc, &video_send_frame);
             }
-            esp_capture_release_path_frame(rtc->capture_path, &video_frame);
+            esp_capture_sink_release_frame(rtc->capture_path, &video_frame);
             rtc->vid_send_pts = video_frame.pts;
             rtc->vid_send_num++;
             rtc->vid_send_size += video_frame.size;
@@ -444,29 +445,29 @@ _exit:
     return ESP_PEER_ERR_INVALID_ARG;
 }
 
-static esp_capture_codec_type_t get_capture_audio_codec(esp_peer_audio_codec_t aud_codec)
+static esp_capture_format_id_t get_capture_audio_codec(esp_peer_audio_codec_t aud_codec)
 {
     switch (aud_codec) {
         default:
-            return ESP_CAPTURE_CODEC_TYPE_NONE;
+            return ESP_CAPTURE_FMT_ID_NONE;
         case ESP_PEER_AUDIO_CODEC_G711A:
-            return ESP_CAPTURE_CODEC_TYPE_G711A;
+            return ESP_CAPTURE_FMT_ID_G711A;
         case ESP_PEER_AUDIO_CODEC_G711U:
-            return ESP_CAPTURE_CODEC_TYPE_G711U;
+            return ESP_CAPTURE_FMT_ID_G711U;
         case ESP_PEER_AUDIO_CODEC_OPUS:
-            return ESP_CAPTURE_CODEC_TYPE_OPUS;
+            return ESP_CAPTURE_FMT_ID_OPUS;
     }
 }
 
-static esp_capture_codec_type_t get_capture_video_codec(esp_peer_audio_codec_t vid_codec)
+static esp_capture_format_id_t get_capture_video_codec(esp_peer_audio_codec_t vid_codec)
 {
     switch (vid_codec) {
         default:
-            return ESP_CAPTURE_CODEC_TYPE_NONE;
+            return ESP_CAPTURE_FMT_ID_NONE;
         case ESP_PEER_VIDEO_CODEC_H264:
-            return ESP_CAPTURE_CODEC_TYPE_H264;
+            return ESP_CAPTURE_FMT_ID_H264;
         case ESP_PEER_VIDEO_CODEC_MJPEG:
-            return ESP_CAPTURE_CODEC_TYPE_MJPEG;
+            return ESP_CAPTURE_FMT_ID_MJPEG;
     }
 }
 
@@ -559,13 +560,13 @@ static int pc_start(webrtc_t *rtc, esp_peer_ice_server_cfg_t *server_info, int s
     media_lib_thread_create_from_scheduler(&thread, "pc_task", pc_task, rtc);
     esp_capture_sink_cfg_t sink_cfg = {
         .audio_info = {
-            .codec = get_capture_audio_codec(peer_cfg.audio_info.codec),
+            .format_id = get_capture_audio_codec(peer_cfg.audio_info.codec),
             .sample_rate = peer_cfg.audio_info.sample_rate ? peer_cfg.audio_info.sample_rate : 8000,
             .channel = peer_cfg.audio_info.channel ? peer_cfg.audio_info.channel : 1,
             .bits_per_sample = 16,
         },
         .video_info = {
-            .codec = get_capture_video_codec(rtc->rtc_cfg.peer_cfg.video_info.codec),
+            .format_id = get_capture_video_codec(rtc->rtc_cfg.peer_cfg.video_info.codec),
             .width = rtc->rtc_cfg.peer_cfg.video_info.width,
             .height = rtc->rtc_cfg.peer_cfg.video_info.height,
             .fps = rtc->rtc_cfg.peer_cfg.video_info.fps,
@@ -573,15 +574,15 @@ static int pc_start(webrtc_t *rtc, esp_peer_ice_server_cfg_t *server_info, int s
     };
     rtc->play_handle = rtc->media_provider.player;
     if (peer_cfg.audio_dir == ESP_PEER_MEDIA_DIR_RECV_ONLY) {
-        sink_cfg.audio_info.codec = ESP_CAPTURE_CODEC_TYPE_NONE;
+        sink_cfg.audio_info.format_id = ESP_CAPTURE_FMT_ID_NONE;
     } else if (peer_cfg.audio_dir == ESP_PEER_MEDIA_DIR_SEND_ONLY) {
         rtc->play_handle = NULL;
     }
     if (peer_cfg.video_dir == ESP_PEER_MEDIA_DIR_RECV_ONLY) {
-        sink_cfg.video_info.codec = ESP_CAPTURE_CODEC_TYPE_NONE;
+        sink_cfg.video_info.format_id = ESP_CAPTURE_FMT_ID_NONE;
     }
-    esp_capture_setup_path(rtc->media_provider.capture, ESP_CAPTURE_PATH_PRIMARY, &sink_cfg, &rtc->capture_path);
-    esp_capture_enable_path(rtc->capture_path, ESP_CAPTURE_RUN_TYPE_ALWAYS);
+    esp_capture_sink_setup(rtc->media_provider.capture, 0, &sink_cfg, &rtc->capture_path);
+    esp_capture_sink_enable(rtc->capture_path, ESP_CAPTURE_RUN_MODE_ALWAYS);
     return ret;
 }
 
