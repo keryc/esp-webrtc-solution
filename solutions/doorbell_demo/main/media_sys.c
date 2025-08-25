@@ -12,9 +12,6 @@
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "esp_video_init.h"
 #endif
-#include "esp_capture_path_simple.h"
-#include "esp_capture_audio_enc.h"
-#include "esp_capture_video_enc.h"
 #include "av_render.h"
 #include "av_render_default.h"
 #include "common.h"
@@ -27,6 +24,7 @@
 #include "esp_video_dec_default.h"
 #include "esp_audio_dec_default.h"
 #include "esp_capture_defaults.h"
+#include "esp_capture_sink.h"
 
 #define TAG "MEDIA_SYS"
 
@@ -38,12 +36,9 @@
 } while (0)
 
 typedef struct {
-    esp_capture_path_handle_t   capture_handle;
-    esp_capture_venc_if_t      *vid_enc;
-    esp_capture_aenc_if_t      *aud_enc;
+    esp_capture_sink_handle_t   capture_handle;
     esp_capture_video_src_if_t *vid_src;
     esp_capture_audio_src_if_t *aud_src;
-    esp_capture_path_if_t      *path_if;
 } capture_system_t;
 
 typedef struct {
@@ -137,31 +132,20 @@ static esp_capture_video_src_if_t *create_video_source(void)
 
 static int build_capture_system(void)
 {
-    capture_sys.aud_enc = esp_capture_new_audio_encoder();
-    RET_ON_NULL(capture_sys.aud_enc, -1);
-    capture_sys.vid_enc = esp_capture_new_video_encoder();
-    RET_ON_NULL(capture_sys.vid_enc, -1);
-
     capture_sys.vid_src = create_video_source();
     RET_ON_NULL(capture_sys.vid_src, -1);
 
-    esp_capture_audio_codec_src_cfg_t codec_cfg = {
+    esp_capture_audio_dev_src_cfg_t codec_cfg = {
         .record_handle = get_record_handle(),
     };
-    capture_sys.aud_src = esp_capture_new_audio_codec_src(&codec_cfg);
+    capture_sys.aud_src = esp_capture_new_audio_dev_src(&codec_cfg);
     RET_ON_NULL(capture_sys.aud_src, -1);
-    esp_capture_simple_path_cfg_t simple_cfg = {
-        .aenc = capture_sys.aud_enc,
-        .venc = capture_sys.vid_enc,
-    };
-    capture_sys.path_if = esp_capture_build_simple_path(&simple_cfg);
-    RET_ON_NULL(capture_sys.path_if, -1);
+
     // Create capture system
     esp_capture_cfg_t cfg = {
         .sync_mode = ESP_CAPTURE_SYNC_MODE_AUDIO,
         .audio_src = capture_sys.aud_src,
         .video_src = capture_sys.vid_src,
-        .capture_path = capture_sys.path_if,
     };
     esp_capture_open(&cfg, &capture_sys.capture_handle);
     return 0;
@@ -229,17 +213,17 @@ int test_capture_to_player(void)
 {
     esp_capture_sink_cfg_t sink_cfg = {
         .audio_info = {
-            .codec = ESP_CAPTURE_CODEC_TYPE_G711A,
+            .format_id = ESP_CAPTURE_FMT_ID_G711A,
             .sample_rate = 8000,
             .channel = 1,
             .bits_per_sample = 16,
         },
-        .video_info = { .codec = ESP_CAPTURE_CODEC_TYPE_MJPEG, .width = VIDEO_WIDTH, .height = VIDEO_HEIGHT, .fps = 20 },
+        .video_info = { .format_id = ESP_CAPTURE_FMT_ID_MJPEG, .width = VIDEO_WIDTH, .height = VIDEO_HEIGHT, .fps = 20 },
     };
     // Create capture
-    esp_capture_path_handle_t capture_path = NULL;
-    esp_capture_setup_path(capture_sys.capture_handle, ESP_CAPTURE_PATH_PRIMARY, &sink_cfg, &capture_path);
-    esp_capture_enable_path(capture_path, ESP_CAPTURE_RUN_TYPE_ALWAYS);
+    esp_capture_sink_handle_t capture_path = NULL;
+    esp_capture_sink_setup(capture_sys.capture_handle, 0, &sink_cfg, &capture_path);
+    esp_capture_sink_enable(capture_path, ESP_CAPTURE_RUN_MODE_ALWAYS);
     // Create player
     av_render_audio_info_t render_aud_info = {
         .codec = AV_RENDER_AUDIO_CODEC_G711A,
@@ -259,24 +243,24 @@ int test_capture_to_player(void)
         esp_capture_stream_frame_t frame = {
             .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
         };
-        while (esp_capture_acquire_path_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
+        while (esp_capture_sink_acquire_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
             av_render_audio_data_t audio_data = {
                 .data = frame.data,
                 .size = frame.size,
                 .pts = frame.pts,
             };
             av_render_add_audio_data(player_sys.player, &audio_data);
-            esp_capture_release_path_frame(capture_path, &frame);
+            esp_capture_sink_release_frame(capture_path, &frame);
         }
         frame.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
-        while (esp_capture_acquire_path_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
+        while (esp_capture_sink_acquire_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
             av_render_video_data_t video_data = {
                 .data = frame.data,
                 .size = frame.size,
                 .pts = frame.pts,
             };
             av_render_add_video_data(player_sys.player, &video_data);
-            esp_capture_release_path_frame(capture_path, &frame);
+            esp_capture_sink_release_frame(capture_path, &frame);
         }
     }
     esp_capture_stop(capture_sys.capture_handle);

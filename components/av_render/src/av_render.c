@@ -144,6 +144,7 @@ typedef struct _av_render {
 
     media_lib_event_grp_handle_t event_group;
     media_lib_mutex_handle_t     api_lock;
+    uint32_t                     audio_threshold;
     av_render_event_cb           event_cb;
     void                        *event_ctx;
     av_render_pool_data_free     pool_free;
@@ -688,6 +689,21 @@ static int a_render_body(av_render_thread_res_t *res, bool drop)
     if (data.size) {
         int q_num = 0, q_size = 0;
         data_queue_query(res->data_q, &q_num, &q_size);
+        if (res->paused == false && res->render->audio_threshold) {
+            if (res->render->a_render_res->audio_rendered == false) {
+                if (q_size < res->render->audio_threshold) {
+                    data_queue_peek_unlock(res->data_q);
+                    // Wait for data reach threshold
+                    media_lib_thread_sleep(10);
+                    return 0;
+                }
+            } else if (q_num < 3) {
+                res->render->a_render_res->audio_rendered = false;
+                data_queue_peek_unlock(res->data_q);
+                media_lib_thread_sleep(10);
+                return 0;
+            }
+        }
         audio_drop_before_render(res->render, q_size, &skip);
     }
     if (drop == false && skip == false && (data.size || data.eos)) {
@@ -714,7 +730,7 @@ static int v_render_body(av_render_thread_res_t *res, bool drop)
         if (vdec_res && vdec_res->vid_convert) {
             // Do color convert firstly
             ret = convert_color(vdec_res->vid_convert,
-                 data.data, data.size, 
+                 data.data, data.size,
                  vdec_res->vid_convert_out, vdec_res->vid_convert_out_size);
             data.data = vdec_res->vid_convert_out;
             data.size = vdec_res->vid_convert_out_size;
@@ -1086,7 +1102,7 @@ static int av_render_video_frame_reached(av_render_video_frame_t *frame, void *c
             if (vdec_res && vdec_res->vid_convert) {
                 // Delay to malloc video convert output size
                 int image_size = convert_table_get_image_size(vdec_res->out_fmt,
-                        v_render->video_frame_info.width, 
+                        v_render->video_frame_info.width,
                         v_render->video_frame_info.height);
                 uint8_t* vid_cvt_out = media_lib_realloc(vdec_res->vid_convert_out, image_size);
                 if (vid_cvt_out == NULL) {
@@ -1576,6 +1592,28 @@ int av_render_add_audio_data(av_render_handle_t h, av_render_audio_data_t *audio
     }
     media_lib_mutex_unlock(render->api_lock);
     return ret;
+}
+
+int av_render_set_audio_threshold(av_render_handle_t h, uint32_t audio_threshold)
+{
+    av_render_t *render = (av_render_t *)h;
+    if (render == NULL) {
+        return -1;
+    }
+    media_lib_mutex_lock(render->api_lock, MEDIA_LIB_MAX_LOCK_TIME);
+    if (render->cfg.audio_render_fifo_size == 0) {
+        ESP_LOGW(TAG, "Not support set audio threshold without render fifo");
+    } else {
+        uint32_t top_limit = render->cfg.audio_render_fifo_size / 2;
+        if (audio_threshold > top_limit) {
+            render->audio_threshold = top_limit;
+        } else {
+            render->audio_threshold = audio_threshold;
+        }
+        ESP_LOGE(TAG, "Set audio threshold %d", (int)render->audio_threshold);
+    }
+    media_lib_mutex_unlock(render->api_lock);
+    return 0;
 }
 
 int av_render_add_video_data(av_render_handle_t h, av_render_video_data_t *video_data)

@@ -9,9 +9,6 @@
 
 #include "codec_init.h"
 #include "codec_board.h"
-
-#include "esp_capture_path_simple.h"
-#include "esp_capture_audio_enc.h"
 #include "av_render.h"
 #include "common.h"
 #include "settings.h"
@@ -21,6 +18,7 @@
 #include "esp_audio_dec_default.h"
 #include "esp_audio_enc_default.h"
 #include "esp_capture_defaults.h"
+#include "esp_capture_sink.h"
 #include "esp_log.h"
 
 #define RET_ON_NULL(ptr, v) do {                                \
@@ -33,10 +31,8 @@
 #define TAG "MEDIA_SYS"
 
 typedef struct {
-    esp_capture_path_handle_t   capture_handle;
-    esp_capture_aenc_if_t      *aud_enc;
+    esp_capture_sink_handle_t   capture_handle;
     esp_capture_audio_src_if_t *aud_src;
-    esp_capture_path_if_t      *path_if;
 } capture_system_t;
 
 typedef struct {
@@ -49,8 +45,6 @@ static player_system_t  player_sys;
 
 static int build_capture_system(void)
 {
-    capture_sys.aud_enc = esp_capture_new_audio_encoder();
-    RET_ON_NULL(capture_sys.aud_enc, -1);
     // For S3 when use ES7210 it use TDM mode second channel is reference data
     esp_capture_audio_aec_src_cfg_t codec_cfg = {
         .record_handle = get_record_handle(),
@@ -59,19 +53,13 @@ static int build_capture_system(void)
         .channel_mask = 1 | 2,
 #endif
     };
-    // capture_sys.aud_src = esp_capture_new_audio_codec_src(&codec_cfg);
+    // capture_sys.aud_src = esp_capture_new_audio_dev_src(&codec_cfg);
     capture_sys.aud_src = esp_capture_new_audio_aec_src(&codec_cfg);
     RET_ON_NULL(capture_sys.aud_src, -1);
-    esp_capture_simple_path_cfg_t simple_cfg = {
-        .aenc = capture_sys.aud_enc,
-    };
-    capture_sys.path_if = esp_capture_build_simple_path(&simple_cfg);
-    RET_ON_NULL(capture_sys.path_if, -1);
     // Create capture system
     esp_capture_cfg_t cfg = {
         .sync_mode = ESP_CAPTURE_SYNC_MODE_AUDIO,
         .audio_src = capture_sys.aud_src,
-        .capture_path = capture_sys.path_if,
     };
     esp_capture_open(&cfg, &capture_sys.capture_handle);
     return 0;
@@ -106,6 +94,11 @@ static int build_player_system()
         .bits_per_sample = 16,
     };
     av_render_set_fixed_frame_info(player_sys.player, &aud_info);
+
+    // Buffer 100ms data to avoid network not stable
+    uint32_t audio_threshold = 0;
+    audio_threshold *= aud_info.sample_rate * aud_info.channel * (aud_info.bits_per_sample >> 3) / 1000;
+    av_render_set_audio_threshold(player_sys.player, audio_threshold);
     return 0;
 }
 
@@ -133,16 +126,16 @@ int test_capture_to_player(void)
 {
     esp_capture_sink_cfg_t sink_cfg = {
         .audio_info = {
-            .codec = ESP_CAPTURE_CODEC_TYPE_OPUS,
+            .format_id = ESP_CAPTURE_FMT_ID_OPUS,
             .sample_rate = 16000,
             .channel = 1,
             .bits_per_sample = 16,
         },
     };
     // Create capture
-    esp_capture_path_handle_t capture_path = NULL;
-    esp_capture_setup_path(capture_sys.capture_handle, ESP_CAPTURE_PATH_PRIMARY, &sink_cfg, &capture_path);
-    esp_capture_enable_path(capture_path, ESP_CAPTURE_RUN_TYPE_ALWAYS);
+    esp_capture_sink_handle_t capture_path = NULL;
+    esp_capture_sink_setup(capture_sys.capture_handle, 0, &sink_cfg, &capture_path);
+    esp_capture_sink_enable(capture_path, ESP_CAPTURE_RUN_MODE_ALWAYS);
     // Create player
     av_render_audio_info_t render_aud_info = {
         .codec = AV_RENDER_AUDIO_CODEC_OPUS,
@@ -158,14 +151,14 @@ int test_capture_to_player(void)
         esp_capture_stream_frame_t frame = {
             .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
         };
-        while (esp_capture_acquire_path_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
+        while (esp_capture_sink_acquire_frame(capture_path, &frame, true) == ESP_CAPTURE_ERR_OK) {
             av_render_audio_data_t audio_data = {
                 .data = frame.data,
                 .size = frame.size,
                 .pts = frame.pts,
             };
             av_render_add_audio_data(player_sys.player, &audio_data);
-            esp_capture_release_path_frame(capture_path, &frame);
+            esp_capture_sink_release_frame(capture_path, &frame);
         }
     }
     esp_capture_stop(capture_sys.capture_handle);

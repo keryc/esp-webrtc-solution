@@ -230,6 +230,20 @@ int av_render_use_data_pool(av_render_handle_t render, av_render_pool_data_free 
 int av_render_add_audio_data(av_render_handle_t render, av_render_audio_data_t *audio_data);
 
 /**
+ * @brief  Set audio threshold
+ *
+ * @note  Audio will not render until reach this threshold
+ *
+ * @param[in]  render           AV render handle
+ * @param[in]  audio_threshold  Audio threshold
+ *
+ * @return
+ *       - 0       On success
+ *       - Others  Fail to set
+ */
+int av_render_set_audio_threshold(av_render_handle_t render, uint32_t audio_threshold);
+
+/**
  * @brief  Add video data for AV render
  *
  * @param[in]  render      AV render handle
