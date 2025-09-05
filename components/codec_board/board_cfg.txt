@@ -117,3 +117,19 @@ i2c: {sda: 40, scl: 39}
 i2s: {mclk: -1, bclk: 42, din: 41, dout: -1}
 in: {codec: DUMMY}
 camera: {type: dvp, xclk: 10, pclk: 13, vsync: 38, href: 47, d0: 15, d1: 17, d2: 18, d3: 16, d4: 14, d5: 12, d6: 11, d7: 48}
+
+Board: FREENOVE_ESP32_S3_WROOM
+i2c: {sda: 4, scl: 5}
+i2s: {mclk: -1, bclk: 42, ws: 41, din: 40, dout: -1, i2s_port: 0}
+i2s: {mclk: -1, bclk: 39, ws: 38, din: -1, dout: 21, i2s_port: 1}
+in: {codec: DUMMY, i2s_port: 0}
+out: {codec: DUMMY, i2s_port: 1}
+camera: {type: dvp, xclk: 15, pclk: 13, vsync: 6, href: 7, d0: 11, d1: 9, d2: 8, d3: 10, d4: 12, d5: 18, d6: 17, d7: 16}
+
+Board: ESP32_S3_N16R8_CAM
+i2c: {sda: 37, scl: 36}
+i2s: {mclk: -1, bclk: 39, ws: 40, din: 38, dout: -1, i2s_port: 0}
+i2s: {mclk: -1, bclk: 10, ws: 45, din: -1, dout: 9, i2s_port: 1}
+in: {codec: DUMMY, i2s_port: 0}
+out: {codec: DUMMY, pa: 46, i2s_port: 1}
+camera: {type: dvp, xclk: 33, pclk: 41, vsync: 35, href: 34, d0: 7, d1: 5, d2: 4, d3: 6, d4: 8, d5: 42, d6: 48, d7: 47}
