@@ -79,6 +79,23 @@ typedef struct {
     int (*on_channel_open)(esp_peer_data_channel_info_t *ch, void *ctx);   /*!< Callback invoked when a data channel is opened */
     int (*on_data)(esp_peer_data_frame_t *frame, void *ctx);               /*!< Callback invoked when data is received on the channel */
     int (*on_channel_close)(esp_peer_data_channel_info_t *ch, void *ctx);  /*!< Callback invoked when a data channel is closed */
+
+    /**
+     * @brief  Callback hook for sending video frames (supports modification or SEI injection).
+     *
+     * @note   This callback is invoked before a video frame is sent, allowing the user to:
+     *         - Send the original video data (leave frame->data unchanged)
+     *         - Send modified video data (update frame->data; user is responsible for managing the new buffer's lifecycle)
+     *         - Drop the frame (do not send)
+     *
+     * @param[in]  frame  Video frame information before sending
+     * @param[in]  ctx    User-defined context
+     *
+     * @return
+     *         - 0        Proceed with sending (using either original or modified data)
+     *         - Others   Drop the frame
+     */
+    int (*on_video_send)(esp_peer_video_frame_t* frame, void* ctx);
 } esp_webrtc_peer_cfg_t;
 
 /**
@@ -106,13 +123,15 @@ typedef struct {
  */
 typedef enum {
     ESP_WEBRTC_EVENT_NONE                      = 0, /*!< None event */
-    ESP_WEBRTC_EVENT_CONNECTED                 = 1, /*!< Connected event */
-    ESP_WEBRTC_EVENT_CONNECT_FAILED            = 2, /*!< Connected failed event */
-    ESP_WEBRTC_EVENT_DISCONNECTED              = 3, /*!< Disconnected event */
-    ESP_WEBRTC_EVENT_DATA_CHANNEL_CONNECTED    = 4, /*!< Data channel connected event */
-    ESP_WEBRTC_EVENT_DATA_CHANNEL_DISCONNECTED = 5, /*!< Data channel disconnected event */
-    ESP_WEBRTC_EVENT_DATA_CHANNEL_OPENED       = 6, /*!< Data channel opened event, suitable for one data channel only */
-    ESP_WEBRTC_EVENT_DATA_CHANNEL_CLOSED       = 7, /*!< Data channel closed event, suitable for one data channel only */
+    ESP_WEBRTC_EVENT_CONNECTING                = 1, /*!< Connecting event */
+    ESP_WEBRTC_EVENT_PAIRED                    = 2, /*!< Paired event */
+    ESP_WEBRTC_EVENT_CONNECTED                 = 3, /*!< Connected event */
+    ESP_WEBRTC_EVENT_CONNECT_FAILED            = 4, /*!< Connected failed event */
+    ESP_WEBRTC_EVENT_DISCONNECTED              = 5, /*!< Disconnected event */
+    ESP_WEBRTC_EVENT_DATA_CHANNEL_CONNECTED    = 6, /*!< Data channel connected event */
+    ESP_WEBRTC_EVENT_DATA_CHANNEL_DISCONNECTED = 7, /*!< Data channel disconnected event */
+    ESP_WEBRTC_EVENT_DATA_CHANNEL_OPENED       = 8, /*!< Data channel opened event, suitable for one data channel only */
+    ESP_WEBRTC_EVENT_DATA_CHANNEL_CLOSED       = 9, /*!< Data channel closed event, suitable for one data channel only */
 } esp_webrtc_event_type_t;
 
 /**
@@ -170,6 +189,22 @@ int esp_webrtc_open(esp_webrtc_cfg_t *cfg, esp_webrtc_handle_t *rtc_handle);
 int esp_webrtc_set_media_provider(esp_webrtc_handle_t rtc_handle, esp_webrtc_media_provider_t *provider);
 
 /**
+ * @brief  Set to disable auto capture for WebRTC
+ *
+ * @note  In default capture will start and stop internally by WebRTC
+ *        In some scenario capture is controlled by other module, capture is only one sink path of it
+ *        Users can call this API to disable auto control of capture
+ *
+ * @param[in]  rtc_handle       WebRTC handle
+ * @param[in]  no_auto_capture  Disable auto capture or not
+ *
+ * @return
+ *      - ESP_PEER_ERR_NONE         On success
+ *      - ESP_PEER_ERR_INVALID_ARG  Invalid argument
+ */
+int esp_webrtc_set_no_auto_capture(esp_webrtc_handle_t rtc_handle, bool no_auto_capture);
+
+/**
  * @brief  WebRTC set event handler
  *
  * @param[in]  rtc_handle  WebRTC handle
@@ -193,6 +228,32 @@ int esp_webrtc_set_event_handler(esp_webrtc_handle_t rtc_handle, esp_webrtc_even
  *      - ESP_PEER_ERR_NO_MEM       Not enough memory
  */
 int esp_webrtc_enable_peer_connection(esp_webrtc_handle_t rtc_handle, bool enable);
+
+/**
+ * @brief  Set audio capture bitrate (specially for audio encoder)
+ *
+ * @param[in]  rtc_handle  WebRTC handle
+ * @param[in]  bitrate     Audio bitrate to set
+ *
+ * @return
+ *      - ESP_PEER_ERR_NONE         On success
+ *      - ESP_PEER_ERR_INVALID_ARG  Invalid argument
+ *      - Others                    Fail to set
+ */
+int esp_webrtc_set_video_bitrate(esp_webrtc_handle_t rtc_handle, uint32_t bitrate);
+
+/**
+ * @brief  Set video capture bitrate (specially for video encoder)
+ *
+ * @param[in]  rtc_handle  WebRTC handle
+ * @param[in]  bitrate     Video bitrate to set
+ *
+ * @return
+ *      - ESP_PEER_ERR_NONE         On success
+ *      - ESP_PEER_ERR_INVALID_ARG  Invalid argument
+ *      - Others                    Fail to set
+ */
+int esp_webrtc_set_audio_bitrate(esp_webrtc_handle_t rtc_handle, uint32_t bitrate);
 
 /**
  * @brief  Start WebRTC

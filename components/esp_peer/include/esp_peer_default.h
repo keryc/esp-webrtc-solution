@@ -62,6 +62,11 @@ typedef struct {
                                                               Some STUN/TURN server reply message slow increase this value */
     esp_peer_default_data_ch_cfg_t  data_ch_cfg;         /*!< Configuration of data channel */
     esp_peer_default_rtp_cfg_t      rtp_cfg;             /*!< Configuration of RTP buffer */
+    bool                            keep_role;           /*!< Do not reset role to controlling when disconnected */
+    bool                            ipv6_support;        /*!< Support IPv6 */
+    uint8_t                         max_candidates;      /*!< Maximum ICE candidates to gather
+                                                              Large setting will consume more heap memory
+                                                              Defaults is 10 if set to 0 */
 } esp_peer_default_cfg_t;
 
 /**
