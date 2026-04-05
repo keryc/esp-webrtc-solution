@@ -132,7 +132,15 @@ i2s: {mclk: -1, bclk: 10, ws: 45, din: -1, dout: 9, i2s_port: 0}
 i2s: {mclk: -1, bclk: 39, ws: 40, din: 38, dout: -1, i2s_port: 1}
 in: {codec: DUMMY, i2s_port: 1}
 out: {codec: DUMMY, pa: 46, i2s_port: 0}
+sdcard: {clk: 11, cmd: 3, d0: 12, d3: 2}
 camera: {type: dvp, xclk: 33, pclk: 41, vsync: 35, href: 34, d0: 7, d1: 5, d2: 4, d3: 6, d4: 8, d5: 42, d6: 48, d7: 47}
+
+Board: WAVESHARE_P4_WIFI6
+i2c: {sda: 7, scl: 8}
+i2s: {mclk: 13, bclk: 12, ws: 10, dout: 9, din: 11}
+in_out: {codec: ES8311, pa: 53, use_mclk: 1, pa_gain: 6}
+sdcard: {clk: 43, cmd: 44, d0: 39, d1: 40, d2: 41, d3: 42}
+camera: {type: mipi}
 
 Board: ESP32_P4_EYE
 i2c: {sda: 14, scl: 13}
