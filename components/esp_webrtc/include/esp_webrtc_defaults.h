@@ -28,6 +28,7 @@
 #include "esp_peer.h"
 #include "esp_peer_signaling.h"
 #include "esp_peer_whip_signaling.h"
+#include "esp_peer_janus_signaling.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +55,24 @@ const esp_peer_signaling_impl_t *esp_signaling_get_apprtc_impl(void);
  *       - Others  WHIP signaling implementation
  */
 const esp_peer_signaling_impl_t *esp_signaling_get_whip_impl(void);
+
+/**
+ * @brief  Get Janus signaling implementation
+ *
+ * @return
+ *       - NULL    Not enough memory
+ *       - Others  Janus signaling implementation
+ */
+const esp_peer_signaling_impl_t *esp_signaling_get_janus_impl(void);
+
+/**
+ * @brief  Get KVS signaling implementation
+ *
+ * @return
+ *       - NULL    Failure to get KVS signaling implementation
+ *       - Others  KVS signaling implementation pointer
+ */
+const esp_peer_signaling_impl_t *esp_signaling_get_kvs_impl(void);
 
 /**
  * @brief  Get default peer connection implementation

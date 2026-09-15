@@ -193,10 +193,16 @@ static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *sc
 #endif
     else if (strcmp(thread_name, "AUD_SRC") == 0) {
         schedule_cfg->priority = 15;
-    } else if (strcmp(thread_name, "pc_task") == 0) {
+    } else if (strcmp(thread_name, "detect") == 0) {
+        schedule_cfg->priority = 8;
+    }
+    else if (strcmp(thread_name, "pc_task") == 0) {
         schedule_cfg->stack_size = 25 * 1024;
         schedule_cfg->priority = 18;
         schedule_cfg->core_id = 1;
+    }
+    if (strcmp(thread_name, "detect_filter") == 0) {
+        schedule_cfg->priority = 15;
     }
     if (strcmp(thread_name, "start") == 0) {
         schedule_cfg->stack_size = 6 * 1024;
@@ -224,6 +230,8 @@ static char *get_network_ip(void)
     return media_lib_ipv4_ntoa(&ip_info.ip);
 }
 
+void sctp_show_details(bool enable);
+
 static int network_event_handler(bool connected)
 {
     if (connected) {
@@ -232,6 +240,7 @@ static int network_event_handler(bool connected)
             start_webrtc(NULL);
             ESP_LOGI(TAG, "Use browser to enter https://%s/webrtc/test for test", get_network_ip());
         });
+        // sctp_show_details(true);
     } else {
         stop_webrtc();
     }

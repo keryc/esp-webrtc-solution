@@ -16,21 +16,16 @@ extern "C" {
 #endif
 
 /**
- * @brief  Board name setting refer to `codec_board` README.md for more details
- */
-#if CONFIG_IDF_TARGET_ESP32P4
-#define TEST_BOARD_NAME "ESP32_P4_DEV_V14"
-#else
-#define TEST_BOARD_NAME "S3_Korvo_V2"
-#endif
-
-/**
  * @brief  Video resolution settings
  */
 #if CONFIG_IDF_TARGET_ESP32P4
 #define VIDEO_WIDTH  1920
 #define VIDEO_HEIGHT 1080
 #define VIDEO_FPS    25
+#elif CONFIG_IDF_TARGET_ESP32S31
+#define VIDEO_WIDTH  640
+#define VIDEO_HEIGHT 480
+#define VIDEO_FPS    5
 #else
 #define VIDEO_WIDTH  320
 #define VIDEO_HEIGHT 240
@@ -61,6 +56,15 @@ extern "C" {
  *        User must replace it to a unused GPIO instead (like GPIO27)
  */
 #define DOOR_BELL_RING_BUTTON  35
+
+#elif CONFIG_IDF_TARGET_ESP32S31
+/**
+ * @brief  GPIO for ring button
+ *
+ * @note  When use ESP32S31-KORVO-1 boot button
+ */
+#define DOOR_BELL_RING_BUTTON  61
+
 #else
 /**
  * @brief  GPIO for ring button
@@ -68,7 +72,10 @@ extern "C" {
  * @note  When use ESP32S3-KORVO-V3 Use ADC button as ring button
  */
 #define DOOR_BELL_RING_BUTTON  5
+
 #endif
+
+//#define WEBRTC_SUPPORT_OPUS
 
 #ifdef __cplusplus
 }

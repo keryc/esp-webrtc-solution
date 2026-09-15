@@ -117,3 +117,60 @@ i2c: {sda: 40, scl: 39}
 i2s: {mclk: -1, bclk: 42, din: 41, dout: -1}
 in: {codec: DUMMY}
 camera: {type: dvp, xclk: 10, pclk: 13, vsync: 38, href: 47, d0: 15, d1: 17, d2: 18, d3: 16, d4: 14, d5: 12, d6: 11, d7: 48}
+
+Board: ESP32_P4_EYE
+i2c: {sda: 14, scl: 13}
+i2s: {mclk: -1, bclk: 22, ws: -1, dout: -1, din: 21}
+in: {codec: DUMMY}
+sdcard: {clk: 43, cmd: 44, d0: 39, d1: 40, d2: 41, d3: 42}
+camera: {type: mipi, xclk: 11, pwr: 12, reset: 26}
+lcd: {
+    bus: spi, extend_io: tca9554, controller: st7789, spi_bus: 2,
+    mirror_x: 1, mirror_y: 1, swap_xy: 0, color_inv: 0,
+    width: 240, height: 240,
+    ctrl: -1, rst: 15,
+    cs: 18, dc: 19, clk: 17, mosi: 16, cmd_bits: 8, param_bits: 8
+}
+
+Board: ESP32_S31_KORVO_1
+i2c: {sda: 0, scl: 1}
+i2s: {mclk: -1, bclk: 3, ws: 4, dout: 5, din: 6}
+in_out: {codec: ES8389, pa: 7, pa_gain:6, i2c_addr: 0x20}
+sdcard: {power: 39, clk: 24, cmd: 25, d0: 20, d1: 21, d2: 22, d3: 23}
+camera: {type: dvp, reset: 60, xclk: 55, pclk: 54, vsync: 56, de: 57, d0: 46, d1: 47, d2: 48, d3: 49, d4: 50, d5: 51, d6: 52, d7: 53}
+lcd: {
+    bus: rgb,
+    width: 800, height: 480,
+    hsync: 44, vsync: 45, de: 43, pclk: 40, disp: -1,
+    d0: 8, d1: 9, d2: 10, d3: 11, d4: 12, d5: 13, d6: 14, d7: 15,
+    d8: 16, d9: 17, d10: 18, d11: 19, d12: 33, d13: 34, d14: 35, d15: 36,
+    pclk_hz: 18000000, data_width: 16, fb_num: 1,
+    hsync_pulse_width: 1, hsync_back_porch: 40, hsync_front_porch: 20,
+    vsync_pulse_width: 1, vsync_back_porch: 10, vsync_front_porch: 5,
+    pclk_active_neg: 1, fb_in_psram: 1
+}
+
+
+Board: FREENOVE_ESP32_S3_WROOM
+i2c: {sda: 4, scl: 5}
+i2s: {mclk: -1, bclk: 42, ws: 41, din: 40, dout: -1, i2s_port: 0}
+i2s: {mclk: -1, bclk: 39, ws: 38, din: -1, dout: 21, i2s_port: 1}
+in: {codec: DUMMY, i2s_port: 0}
+out: {codec: DUMMY, i2s_port: 1}
+camera: {type: dvp, xclk: 15, pclk: 13, vsync: 6, href: 7, d0: 11, d1: 9, d2: 8, d3: 10, d4: 12, d5: 18, d6: 17, d7: 16}
+
+Board: ESP32_S3_N16R8_CAM
+i2c: {sda: 37, scl: 36}
+i2s: {mclk: -1, bclk: 10, ws: 45, din: -1, dout: 9, i2s_port: 0}
+i2s: {mclk: -1, bclk: 39, ws: 40, din: 38, dout: -1, i2s_port: 1}
+in: {codec: DUMMY, i2s_port: 1}
+out: {codec: DUMMY, pa: 46, i2s_port: 0}
+sdcard: {clk: 11, cmd: 3, d0: 12, d3: 2}
+camera: {type: dvp, xclk: 33, pclk: 41, vsync: 35, href: 34, d0: 7, d1: 5, d2: 4, d3: 6, d4: 8, d5: 42, d6: 48, d7: 47}
+
+Board: WAVESHARE_P4_WIFI6
+i2c: {sda: 7, scl: 8}
+i2s: {mclk: 13, bclk: 12, ws: 10, dout: 9, din: 11}
+in_out: {codec: ES8311, pa: 53, use_mclk: 1, pa_gain: 6}
+sdcard: {clk: 43, cmd: 44, d0: 39, d1: 40, d2: 41, d3: 42}
+camera: {type: mipi}

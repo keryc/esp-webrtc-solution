@@ -26,8 +26,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <mbedtls/entropy.h>
+#include "esp_idf_version.h"
+#if MBEDTLS_MAJOR_VERSION >= 4
+#include <mbedtls/private/ctr_drbg.h>
+#else
 #include <mbedtls/ctr_drbg.h>
+#endif
 #include <mbedtls/ssl.h>
 #include <mbedtls/ssl_cookie.h>
 #include <mbedtls/pk.h>
@@ -41,11 +45,22 @@
 extern "C" {
 #endif
 
-#define RSA_KEY_LENGTH                1024
+#define DTLS_CERT_PEM_BUF_SIZE        2048
 #define SRTP_MASTER_KEY_LENGTH        16
 #define SRTP_MASTER_SALT_LENGTH       14
 #define DTLS_SRTP_KEY_MATERIAL_LENGTH 60
 #define DTLS_SRTP_FINGERPRINT_LENGTH  160
+
+/*
+ * ClientHello reassembly BIO:
+ * - mbedTLS < 3.6.6: native path rejects fragmented CH (-0x7080)
+ * - mbedTLS >= 3.6.6 / 4.x: native DTLS CH reassembly exists; do not wrap BIO
+ *   (extra BIO previously truncated multi-record datagrams after CKE and hung
+ *   the handshake). IDF v6 first-boot -0x6e00 was PSA ECDSA policy, not CH reasm.
+ */
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER < 0x03060600)
+#define DTLS_USE_CH_REASM_BIO 1
+#endif
 
 /**
  * @brief  DTLS role
@@ -75,7 +90,9 @@ typedef struct {
     mbedtls_ssl_cookie_ctx   cookie_ctx;
     mbedtls_x509_crt         cert;
     mbedtls_pk_context       pkey;
-    mbedtls_entropy_context  entropy;
+#if ESP_IDF_VERSION_MAJOR >= 6
+    mbedtls_svc_key_id_t     psa_key_id;
+#endif
     mbedtls_ctr_drbg_context ctr_drbg;
     dtls_srtp_role_t         role;
     dtls_srtp_state_t        state;
@@ -90,6 +107,22 @@ typedef struct {
     media_lib_mutex_handle_t lock;
     int                      (*udp_send)(void *ctx, const unsigned char *buf, size_t len);
     int                      (*udp_recv)(void *ctx, unsigned char *buf, size_t len);
+    mbedtls_timing_delay_context timer; /* per-session DTLS timer (avoid static reuse) */
+#if defined(DTLS_USE_CH_REASM_BIO)
+    /*
+     * Lazy ClientHello reassembly BIO.
+     * Allocate ~message-sized heap only while a fragmented ClientHello is active.
+     */
+    uint8_t                 *ch_buf;         /* pending datagram or reassembled record */
+    size_t                   ch_cap;
+    size_t                   ch_len;
+    size_t                   ch_pos;
+    size_t                   ch_total;       /* HS message length when assembling */
+    size_t                   ch_got;         /* covered body bytes */
+    uint16_t                 ch_msg_seq;
+    uint8_t                  ch_rec_hdr[13];
+    uint8_t                  ch_active;      /* assembling fragmented ClientHello */
+#endif
 } dtls_srtp_t;
 
 /**
