@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.0.2
+
+- Fixed LCD init failed due to clk error on IDFv6.x
+- Added support for `esp32s31_korvo_1` board
+
 ## v2.0.1
 
 - Support get LCD IO handle through `board_get_lcd_io_handle`

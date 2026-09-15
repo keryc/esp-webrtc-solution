@@ -5,7 +5,9 @@
  * See LICENSE file for details.
  */
 
+// #define DUMP_DTLS_KEY
 #include "dtls_common.h"
+#include "mbedtls/ecp.h"
 
 static int dtls_srtp_selfsign_cert(dtls_srtp_t *dtls_srtp, bool export_for_cache)
 {
@@ -24,15 +26,15 @@ static int dtls_srtp_selfsign_cert(dtls_srtp_t *dtls_srtp, bool export_for_cache
         ESP_LOGE(TAG, "mbedtls_ctr_drbg_seed failed, ret=%d", ret);
         goto _exit;
     }
-    ret = mbedtls_pk_setup(&dtls_srtp->pkey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+    ret = mbedtls_pk_setup(&dtls_srtp->pkey, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
     if (ret != 0) {
-        ESP_LOGE(TAG, "mbedtls_pk_setup(RSA) failed, ret=%d", ret);
+        ESP_LOGE(TAG, "mbedtls_pk_setup(ECKEY) failed, ret=%d", ret);
         goto _exit;
     }
-    ret = mbedtls_rsa_gen_key(mbedtls_pk_rsa(dtls_srtp->pkey), mbedtls_ctr_drbg_random, &dtls_srtp->ctr_drbg, 1024,
-                              65537);
+    ret = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, mbedtls_pk_ec(dtls_srtp->pkey),
+                              mbedtls_ctr_drbg_random, &dtls_srtp->ctr_drbg);
     if (ret != 0) {
-        ESP_LOGE(TAG, "mbedtls_rsa_gen_key failed, ret=%d", ret);
+        ESP_LOGE(TAG, "mbedtls_ecp_gen_key failed, ret=%d", ret);
         goto _exit;
     }
 
@@ -217,6 +219,9 @@ void dtls_srtp_deinit(dtls_srtp_t *dtls_srtp)
     if (dtls_srtp->role == DTLS_SRTP_ROLE_SERVER) {
         mbedtls_ssl_cookie_free(&dtls_srtp->cookie_ctx);
     }
+#if defined(DTLS_USE_CH_REASM_BIO)
+    dtls_srtp_ch_reasm_free(dtls_srtp);
+#endif
     if (dtls_srtp->srtp_in) {
         srtp_dealloc(dtls_srtp->srtp_in);
         dtls_srtp->srtp_in = NULL;
@@ -230,6 +235,7 @@ void dtls_srtp_deinit(dtls_srtp_t *dtls_srtp)
     }
     check_srtp(false);
     dtls_srtp->state = DTLS_SRTP_STATE_NONE;
+    media_lib_free(dtls_srtp);
 }
 
 void dtls_srtp_reset_session(dtls_srtp_t *dtls_srtp, dtls_srtp_role_t role)
@@ -239,8 +245,12 @@ void dtls_srtp_reset_session(dtls_srtp_t *dtls_srtp, dtls_srtp_role_t role)
         dtls_srtp->srtp_in = NULL;
         srtp_dealloc(dtls_srtp->srtp_out);
         dtls_srtp->srtp_out = NULL;
-        mbedtls_ssl_session_reset(&dtls_srtp->ssl);
     }
+    mbedtls_ssl_session_reset(&dtls_srtp->ssl);
+    mbedtls_timing_set_delay(&dtls_srtp->timer, 0, 0);
+#if defined(DTLS_USE_CH_REASM_BIO)
+    dtls_srtp_ch_reasm_free(dtls_srtp);
+#endif
     if (role != dtls_srtp->role) {
         if (dtls_srtp->role == DTLS_SRTP_ROLE_SERVER) {
             mbedtls_ssl_cookie_free(&dtls_srtp->cookie_ctx);
@@ -268,6 +278,8 @@ void dtls_srtp_reset_session(dtls_srtp_t *dtls_srtp, dtls_srtp_role_t role)
         mbedtls_ssl_conf_dtls_srtp_protection_profiles(&dtls_srtp->conf, default_profiles);
         mbedtls_ssl_conf_srtp_mki_value_supported(&dtls_srtp->conf, MBEDTLS_SSL_DTLS_SRTP_MKI_UNSUPPORTED);
         mbedtls_ssl_conf_dtls_anti_replay(&dtls_srtp->conf, MBEDTLS_SSL_ANTI_REPLAY_DISABLED);
+        mbedtls_ssl_free(&dtls_srtp->ssl);
+        mbedtls_ssl_init(&dtls_srtp->ssl);
         mbedtls_ssl_setup(&dtls_srtp->ssl, &dtls_srtp->conf);
         mbedtls_ssl_set_mtu(&dtls_srtp->ssl, DTLS_MTU_SIZE);
         dtls_srtp->role = role;

@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.5.3
+
+- Fixed IDF v6 / mbedTLS 4.1 first-boot DTLS handshake fail (`-0x6e00`): use ClientHello
+  reassembly BIO, force datagram transport, per-session timer, and stricter cookie/PSA init
+
+## v1.5.2
+
+### Bug Fixes
+
+- Fixed handshake fail return `-0x7080` on mbedTLS version below than v3.6.6
+
+## v1.5.1
+
+### Bug Fixes
+
+- Fixed leakage caused by DTLS re-setup
+- Fixed data channel still create even peer sdp not contain data channel
+- Fixed aggressive SCTP resend logic, use exponential resend time as browser
+
+## v1.5.0
+
+### Features
+
+- Added TCP and TURNS support for agent
+
+## v1.4.2
+
+### Features
+
+- Added re-negotiation support when SDP changed during connected
+- Add ECDSA 256 support
+
+### Bug Fixes
+
+- Fixed nominate candidate too early when act as controlled
+- Treat DTLS role as client when peer send `actpass`
+- Treat `MBEDTLS_ERR_SSL_CLIENT_RECONNECT` as disconnected
+- Fixed un-reliable data channel failed to open due to DCEP message not retransmitted
+- Fixed memory leakage due to DTLS resource not free
+
 ## v1.4.1
 
 ### Features

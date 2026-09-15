@@ -7,10 +7,19 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "6.0")
 else()
   list(APPEND COMPONENT_SRCS "src/dtls_srtp.c")
 endif()
+list(APPEND COMPONENT_SRCS "src/peer_utils.c")
+
+list(APPEND COMPONENT_SRCS "src/transport/udp.c"
+     "src/transport/tcp.c"
+     "src/transport/tls.c"
+     "src/transport/peer_tls_esp.c")
+
+set(PRIVATE_INC "./src")
 
 idf_component_register(INCLUDE_DIRS ./include
+                       PRIV_INCLUDE_DIRS ${PRIVATE_INC}
                        SRCS ${COMPONENT_SRCS}
-                       PRIV_REQUIRES mbedtls)
+                       PRIV_REQUIRES mbedtls esp-tls esp_netif)
 
 if(idf_ver_major GREATER_EQUAL 6)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE
